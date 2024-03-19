@@ -74,31 +74,14 @@ WHERE id IN (
 
 
 ##N1. Exercici 2: Mostra la mitjana de la suma de transaccions per IBAN de les targetes de crèdit en la companyia Donec Ltd. utilitzant almenys 2 taules.
-WITH tt AS
-	(SELECT business_id, sum(amount) AS suma_trans
-	FROM transactions AS t
-	JOIN credit_cards AS cc
-	ON t.card_id=cc.id
-	GROUP BY business_id, iban)
-SELECT AVG(suma_trans)
-FROM tt
-WHERE business_id IN (
-	SELECT company_id
-	FROM companies
-	WHERE company_name LIKE 'donec ltd%');
-    
-##otra opción con tabla temporal, pero sin subquery y solo joins
-WITH tt AS(
-	SELECT business_id, sum(amount) AS suma_trans
-	FROM transactions AS t
-	JOIN credit_cards AS cc
-	ON t.card_id=cc.id
-	JOIN companies AS c 
-	ON c.company_id = t.business_id
-	WHERE company_name LIKE 'Donec Ltd%'
-	GROUP BY t.business_id, cc.iban)
-SELECT AVG(suma_trans)
-FROM tt;
+SELECT t.business_id, cc.iban, avg(t.amount) AS mitjana_trans
+FROM transactions AS t
+JOIN credit_cards AS cc
+ON t.card_id=cc.id
+JOIN companies AS c 
+ON c.company_id = t.business_id
+WHERE company_name LIKE 'Donec Ltd%' 
+GROUP BY t.business_id, cc.iban;
 
 
 #Nivell 2: Crea una nova taula que reflecteixi l'estat de les targetes de crèdit basat en si les últimes tres transaccions van ser declinades 
@@ -118,25 +101,22 @@ ALTER TABLE transactions MODIFY fecha_hora DATETIME;
 DESCRIBE transactions;
 
 #---------------------------------------------------------------------------------
-#Creamos la tabla
 
+#Creamos la tabla
 CREATE TABLE card_status AS (
-WITH rn_table AS (
-	SELECT t.card_id, t.fecha_hora, t.declined,
-	ROW_NUMBER () OVER (PARTITION BY card_id ORDER BY fecha_hora DESC) AS rn
-FROM transactions AS t)
-SELECT *,
-	CASE 
-		WHEN declined = 1 AND rn < 4 AND
-        (SELECT SUM(declined) FROM rn_table AS inner_table WHERE inner_table.card_id = rn_table.card_id) >= 3 
-    THEN 'Rechazada'
-    ELSE 'Aceptada'
-END AS Status
-FROM rn_table);
+SELECT t.card_id,
+		   t.fecha_hora,
+           t.declined,
+           CASE
+			WHEN t.declined = 1 AND
+				 ROW_NUMBER () OVER (PARTITION BY t.card_id ORDER BY t.fecha_hora DESC) < 4 AND
+                 SUM(t.declined) OVER (PARTITION BY t.card_id) >= 3
+			THEN 'Inactiva'
+            ELSE 'Activa'
+		   END AS Status
+FROM transactions AS t);
 
 #Corroboramos la creación de la tabla
-DESCRIBE card_status;
-
 SELECT * FROM card_status;
 
 
@@ -155,22 +135,19 @@ UPDATE transactions
 SET declined = 1 
 WHERE id IN ('AD85A78A-8829-5746-93A0-8B7A792EBC18', 'F1A598A2-86C5-50A9-F1CE-FB1D69866C39', '55166D02-D74C-6A63-6C54-8678467649B4');
 
-#Creamos la tabla de nuevo
-#el código evaluaba correctamente, lo modificamos hasta que funciona. Creamos la tabla definitiva:
+#Creamos la tabla de nuevo para corroborar que funciona correctamente:
 CREATE TABLE card_status AS (
-WITH rn_table AS (
-	SELECT t.card_id, t.fecha_hora, t.declined,
-	ROW_NUMBER () OVER (PARTITION BY card_id ORDER BY fecha_hora DESC) AS rn
-FROM transactions AS t)
-SELECT *,
-	CASE 
-		WHEN declined = 1 AND rn < 4 AND
-        (SELECT SUM(declined) FROM rn_table AS inner_table WHERE inner_table.card_id = rn_table.card_id) >= 3 
-    THEN 'Rechazada'
-    ELSE 'Aceptada'
-END AS Status
-FROM rn_table
-);
+SELECT t.card_id,
+		   t.fecha_hora,
+           t.declined,
+           CASE
+			WHEN t.declined = 1 AND
+				 ROW_NUMBER () OVER (PARTITION BY t.card_id ORDER BY t.fecha_hora DESC) < 4 AND
+                 SUM(t.declined) OVER (PARTITION BY t.card_id) >= 3
+			THEN 'Inactiva'
+            ELSE 'Activa'
+		   END AS Status
+FROM transactions AS t);
 
 #corroboramos:
 SELECT * FROM card_status;
@@ -188,19 +165,17 @@ SET SQL_SAFE_UPDATES = 1;
 
 #Creamos la tabla card_status sabiendo que funciona correctamente:
 CREATE TABLE card_status AS (
-WITH rn_table AS (
-	SELECT t.card_id, t.fecha_hora, t.declined,
-	ROW_NUMBER () OVER (PARTITION BY card_id ORDER BY fecha_hora DESC) AS rn
-FROM transactions AS t)
-SELECT *,
-	CASE 
-		WHEN declined = 1 AND rn < 4 AND
-        (SELECT SUM(declined) FROM rn_table AS inner_table WHERE inner_table.card_id = rn_table.card_id) >= 3 
-    THEN 'Inactiva'
-    ELSE 'Activa'
-END AS Status
-FROM rn_table);
-
+SELECT t.card_id,
+		   t.fecha_hora,
+           t.declined,
+           CASE
+			WHEN t.declined = 1 AND
+				 ROW_NUMBER () OVER (PARTITION BY t.card_id ORDER BY t.fecha_hora DESC) < 4 AND
+                 SUM(t.declined) OVER (PARTITION BY t.card_id) >= 3
+			THEN 'Inactiva'
+            ELSE 'Activa'
+		   END AS Status
+FROM transactions AS t);
 
 SELECT * FROM card_status;
 
@@ -211,6 +186,7 @@ SELECT * FROM card_status;
 SELECT COUNT(distinct card_id)
 FROM card_status
 WHERE status = 'Activa';
+
 
 ##Nivell 3
 ## Primero creamos la tabla Products e importamos los datos con wizard
@@ -224,7 +200,6 @@ CREATE TABLE products (
  
 #comprobamos la creación de la tabla
 SELECT * FROM products;
-
 
 #Luego creamos la siguiente tabla puente para evitar la relación N-N entre las tablas Products y Transactions
 CREATE TABLE products_per_transactions (
@@ -255,7 +230,6 @@ SELECT * FROM products_per_transactions;
 select length(id_product)
 from products_per_transactions;
 
-#eliminamos los espacios en blanco con la función TRIM
 SET SQL_SAFE_UPDATES = 0;
 UPDATE products_per_transactions
 SET id_product = TRIM(id_product);
@@ -268,16 +242,16 @@ ADD CONSTRAINT FOREIGN KEY (id_transaction) REFERENCES transactions(id);
 ### Creamos un índice porque sino da error al querer crear la FK
 CREATE INDEX idx_products_id ON products(id);
 ALTER TABLE products_per_transactions
-ADD CONSTRAINT FOREIGN KEY (id_product) REFERENCES products (id);
+ADD CONSTRAINT FOREIGN KEY (id_product) REFERENCES products(id);
 
-#N3: E1: Necessitem conèixer el nombre de vegades que s'ha venut cada produ
-SELECT id_product, COUNT(distinct id_transaction)
+
+#N3: E1: Necessitem conèixer el nombre de vegades que s'ha venut cada producte
+SELECT id_product, COUNT(distinct id_transaction) 
 FROM products_per_transactions ppt
 JOIN transactions t
 ON ppt.id_transaction=t.id
-WHERE declined=0
+WHERE t.declined = 0
 GROUP BY id_product;
-
 
 
 
