@@ -254,9 +254,33 @@ WHERE t.declined = 0
 GROUP BY id_product;
 
 
+#Para que el resultado pueda salir ordenado por id de producto, cambiaremos el tipo de dato de varchar a int, pero como es FK debemos desactivarlas temporalmente
+SHOW CREATE TABLE products_per_transactions;
+ALTER TABLE products_per_transactions
+DROP FOREIGN KEY `products_per_transactions_ibfk_3`;
 
+ALTER TABLE products_per_transactions CHANGE id_product id_product INT;
+ALTER TABLE products CHANGE id id INT;
 
+ALTER TABLE products_per_transactions
+ADD CONSTRAINT FOREIGN KEY (id_product) REFERENCES products(id);
 
+#corremos nuevamente la consulta para obtener el listado de productos vendidos
+SELECT id_product, COUNT(distinct id_transaction) 
+FROM products_per_transactions ppt
+JOIN transactions t
+ON ppt.id_transaction=t.id
+WHERE t.declined = 0
+GROUP BY id_product;
 
-    
+#si también quisiéramos que salgan los productos que no se han vendido la consulta sería la siguiente:
+SELECT p.id AS id_producto, cant_transacc
+FROM products p
+LEFT JOIN ( SELECT id_product, COUNT(distinct id_transaction) AS cant_transacc
+			FROM products_per_transactions ppt
+			JOIN transactions t
+			ON ppt.id_transaction=t.id
+			WHERE t.declined = 0
+			GROUP BY id_product) cant_vendida
+ON cant_vendida.id_product=p.id;
 
