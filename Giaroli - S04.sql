@@ -179,6 +179,11 @@ FROM transactions AS t);
 
 SELECT * FROM card_status;
 
+#---------------------ADICIONAL PARA MEJORAR LA BASE DE DATOS-------------------- 
+#Añadimos un FK  la tabla card_status para vincularla a credit_cards
+ALTER TABLE card_status
+ADD CONSTRAINT FOREIGN KEY (card_id) REFERENCES credit_cards(id);
+
 #---------------------------------------------------------------
 
 ##N2: Exercici 1: Quantes targetes estan actives?
@@ -283,4 +288,12 @@ LEFT JOIN ( SELECT id_product, COUNT(distinct id_transaction) AS cant_transacc
 			WHERE t.declined = 0
 			GROUP BY id_product) cant_vendida
 ON cant_vendida.id_product=p.id;
+
+
+
+
+
+
+
+
 
